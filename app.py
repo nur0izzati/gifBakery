@@ -24,7 +24,7 @@ def crop_to_aspect(img, target_w, target_h):
         left = 0
         top = (src_h - new_h) / 2
         right = src_w
-        bottom = (src_h + new_h) / 2
+        bottom = src_h + new_h
 
     cropped = img.crop((left, top, right, bottom))
     return cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
@@ -34,32 +34,18 @@ def compress_gif(input_img, quality, width, height, custom_size):
     img = Image.open(input_img)
     output_path = "temp_preview.gif"
     frames = []
-    
     for frame in range(0, img.n_frames):
         img.seek(frame)
-        # Convert to clean RGBA and clear old GIF metadata to prevent canvas stretching
         current_frame = img.convert("RGBA")
         current_frame.info = {} 
-        
         if custom_size:
             current_frame = crop_to_aspect(current_frame, width, height)
         else:
             w_percent = (width / float(img.size[0]))
             h_size = int((float(img.size[1]) * float(w_percent)))
             current_frame = current_frame.resize((width, h_size), Image.Resampling.LANCZOS)
-            
         frames.append(current_frame)
-        
-    # Save with a clean palette to lock in the true square container size
-    frames[0].save(
-        output_path, 
-        save_all=True, 
-        append_images=frames[1:], 
-        optimize=True, 
-        colors=quality, 
-        loop=0,
-        disposal=2
-    )
+    frames[0].save(output_path, save_all=True, append_images=frames[1:], optimize=True, colors=quality, loop=0, disposal=2)
     return output_path
 
 def images_to_gif(image_frames_list, duration, width, height, use_custom_dimensions):
@@ -133,27 +119,56 @@ with tab2:
     st.header("Convert Images into a GIF")
     uploaded_imgs = st.file_uploader("Upload images", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="img_multi")
     
-    if 'frame_multipliers' not in st.session_state:
-        st.session_state['frame_multipliers'] = {}
+    # Initialize our timeline state tracking
+    if 'timeline_files' not in st.session_state:
+        st.session_state['timeline_files'] = []
+    if 'last_uploaded_raw' not in st.session_state:
+        st.session_state['last_uploaded_raw'] = []
 
+    # If the user changes or uploads new files, load them into our editable timeline list
     if uploaded_imgs:
+        current_names = [f.name for f in uploaded_imgs]
+        if current_names != st.session_state['last_uploaded_raw']:
+            st.session_state['timeline_files'] = [f for f in uploaded_imgs]
+            st.session_state['last_uploaded_raw'] = current_names
+
+    if st.session_state['timeline_files']:
         st.write("---")
-        st.write("📋 **Adjust Frame Repetitions:**")
-        final_frames_list = []
-        for i, img_file in enumerate(uploaded_imgs):
-            file_id = f"{img_file.name}_{i}"
-            if file_id not in st.session_state['frame_multipliers']:
-                st.session_state['frame_multipliers'][file_id] = 1
-            col_img, col_btn = st.columns([3, 1])
-            with col_img:
-                st.write(f"🖼️ `{img_file.name}` (Repeated: {st.session_state['frame_multipliers'][file_id]}x)")
-            with col_btn:
-                if st.button("➕ Duplicate", key=f"btn_{file_id}"):
-                    st.session_state['frame_multipliers'][file_id] += 1
+        st.write("🎬 **Manage Your GIF Timeline Order:**")
+        
+        final_processing_frames = []
+        
+        # Display each file in its current active position index
+        for index, img_file in enumerate(st.session_state['timeline_files']):
+            col_name, col_dup, col_up, col_down = st.columns([4, 2, 1, 1])
+            
+            with col_name:
+                st.write(f"**{index + 1}.** `{img_file.name}`")
+            
+            with col_dup:
+                if st.button("➕ Copy", key=f"dup_{index}_{img_file.name}"):
+                    # Insert a duplicate of this object right next to it
+                    st.session_state['timeline_files'].insert(index + 1, img_file)
                     st.rerun()
+                    
+            with col_up:
+                # Disable the up arrow if it's already the very first frame
+                if st.button("🔼", key=f"up_{index}_{img_file.name}", disabled=(index == 0)):
+                    st.session_state['timeline_files'][index], st.session_state['timeline_files'][index - 1] = \
+                        st.session_state['timeline_files'][index - 1], st.session_state['timeline_files'][index]
+                    st.rerun()
+                    
+            with col_down:
+                # Disable the down arrow if it's already the very last frame
+                if st.button("🔽", key=f"down_{index}_{img_file.name}", disabled=(index == len(st.session_state['timeline_files']) - 1)):
+                    st.session_state['timeline_files'][index], st.session_state['timeline_files'][index + 1] = \
+                        st.session_state['timeline_files'][index + 1], st.session_state['timeline_files'][index]
+                    st.rerun()
+            
+            # Read image data for final compilation
             pil_obj = Image.open(img_file)
-            for _ in range(st.session_state['frame_multipliers'][file_id]):
-                final_frames_list.append(pil_obj)
+            final_processing_frames.append(pil_obj)
+            
         st.write("---")
         
         make_square_2 = st.checkbox("Force into a 200x200 Square?", key="sq2")
@@ -169,7 +184,7 @@ with tab2:
         if make_square_2 or custom_size_2:
             show_size_guide(img_width, img_height)
             
-        preview_file = images_to_gif(final_frames_list, duration, img_width, img_height, (make_square_2 or custom_size_2))
+        preview_file = images_to_gif(final_processing_frames, duration, img_width, img_height, (make_square_2 or custom_size_2))
         st.subheader("👀 Live Edit Preview:")
         st.image(preview_file)
         with open(preview_file, "rb") as file:
