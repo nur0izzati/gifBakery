@@ -47,10 +47,10 @@ def compress_gif(input_img, quality, width, height, custom_size):
     frames[0].save(output_path, save_all=True, append_images=frames[1:], optimize=True, colors=quality, loop=0)
     return output_path
 
-def images_to_gif(image_frames_list, duration, width, height, custom_size):
+def images_to_gif(image_frames_list, duration, width, height, use_custom_dimensions):
     frames = []
     for img in image_frames_list:
-        if custom_size:
+        if use_custom_dimensions:
             resized_img = crop_to_aspect(img, width, height)
         else:
             w_percent = (width / float(img.size[0]))
@@ -62,11 +62,11 @@ def images_to_gif(image_frames_list, duration, width, height, custom_size):
     frames[0].save(output_path, save_all=True, append_images=frames[1:], duration=duration, loop=0)
     return output_path
 
-def video_to_gif(video_bytes, fps, width, height, custom_size):
+def video_to_gif(video_bytes, fps, width, height, use_custom_dimensions):
     with open("temp_video.mp4", "wb") as f:
         f.write(video_bytes.read())
     output_path = "video_preview_out.gif"
-    if custom_size:
+    if use_custom_dimensions:
         vf_chain = f"fps={fps},crop='if(gte(iw/ih,{width}/{height}),ih*{width}/{height},iw)':'if(gte(iw/ih,{width}/{height}),ih,iw*{height}/{width})',scale={width}:{height}:flags=lanczos"
     else:
         vf_chain = f"fps={fps},scale={width}:-1:flags=lanczos"
@@ -93,18 +93,21 @@ tab1, tab2, tab3 = st.tabs(["⚡ Compress GIF", "📸 Images to GIF", "🎬 Vide
 with tab1:
     st.header("Compress & Resize a GIF")
     uploaded_gif = st.file_uploader("Upload a GIF", type=["gif"], key="gif_comp")
-    custom_size_1 = st.checkbox("Set custom Width and Height?", key="cs1")
+    
+    make_square_1 = st.checkbox("Force into a 200x200 Square?", key="sq1")
+    custom_size_1 = False if make_square_1 else st.checkbox("Set custom Width and Height?", key="cs1")
+    
     col1, col2 = st.columns(2)
     with col1:
         quality = st.slider("Quality (Colors)", 2, 256, 32, key="q_slide")
-        gif_width = st.slider("Width (Pixels)", 100, 1200, 480, key="gw1")
+        gif_width = 200 if make_square_1 else st.slider("Width (Pixels)", 100, 1200, 480, key="gw1")
     with col2:
-        gif_height = st.slider("Height (Pixels)", 100, 1200, 480, key="gh1") if custom_size_1 else 480
+        gif_height = 200 if make_square_1 else (st.slider("Height (Pixels)", 100, 1200, 480, key="gh1") if custom_size_1 else 480)
 
     if uploaded_gif:
-        if custom_size_1:
+        if make_square_1 or custom_size_1:
             show_size_guide(gif_width, gif_height)
-        preview_file = compress_gif(uploaded_gif, quality, gif_width, gif_height, custom_size_1)
+        preview_file = compress_gif(uploaded_gif, quality, gif_width, gif_height, (make_square_1 or custom_size_1))
         st.subheader("👀 Live Edit Preview:")
         st.image(preview_file)
         with open(preview_file, "rb") as file:
@@ -114,22 +117,17 @@ with tab2:
     st.header("Convert Images into a GIF")
     uploaded_imgs = st.file_uploader("Upload images", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="img_multi")
     
-    # Initialize list to keep track of duplicated frames
     if 'frame_multipliers' not in st.session_state:
         st.session_state['frame_multipliers'] = {}
 
     if uploaded_imgs:
         st.write("---")
         st.write("📋 **Adjust Frame Repetitions:**")
-        
-        # Build final processing sequence based on user duplication inputs
         final_frames_list = []
-        
         for i, img_file in enumerate(uploaded_imgs):
             file_id = f"{img_file.name}_{i}"
             if file_id not in st.session_state['frame_multipliers']:
                 st.session_state['frame_multipliers'][file_id] = 1
-                
             col_img, col_btn = st.columns([3, 1])
             with col_img:
                 st.write(f"🖼️ `{img_file.name}` (Repeated: {st.session_state['frame_multipliers'][file_id]}x)")
@@ -137,26 +135,25 @@ with tab2:
                 if st.button("➕ Duplicate", key=f"btn_{file_id}"):
                     st.session_state['frame_multipliers'][file_id] += 1
                     st.rerun()
-            
-            # Append the actual image object multiplied by the requested copies
             pil_obj = Image.open(img_file)
             for _ in range(st.session_state['frame_multipliers'][file_id]):
                 final_frames_list.append(pil_obj)
-                
         st.write("---")
         
-        custom_size_2 = st.checkbox("Set custom Width and Height?", key="cs2")
+        make_square_2 = st.checkbox("Force into a 200x200 Square?", key="sq2")
+        custom_size_2 = False if make_square_2 else st.checkbox("Set custom Width and Height?", key="cs2")
+        
         col1, col2 = st.columns(2)
         with col1:
             duration = st.number_input("Frame Speed (ms)", min_value=100, max_value=2000, value=300)
-            img_width = st.slider("Output Width", 100, 1200, 480, key="iw2")
+            img_width = 200 if make_square_2 else st.slider("Output Width", 100, 1200, 480, key="iw2")
         with col2:
-            img_height = st.slider("Output Height", 100, 1200, 480, key="ih2") if custom_size_2 else 480
+            img_height = 200 if make_square_2 else (st.slider("Output Height", 100, 1200, 480, key="ih2") if custom_size_2 else 480)
             
-        if custom_size_2:
+        if make_square_2 or custom_size_2:
             show_size_guide(img_width, img_height)
             
-        preview_file = images_to_gif(final_frames_list, duration, img_width, img_height, custom_size_2)
+        preview_file = images_to_gif(final_frames_list, duration, img_width, img_height, (make_square_2 or custom_size_2))
         st.subheader("👀 Live Edit Preview:")
         st.image(preview_file)
         with open(preview_file, "rb") as file:
@@ -168,20 +165,24 @@ with tab3:
     if uploaded_vid:
         st.subheader("🎬 Your Uploaded Source Video:")
         st.video(uploaded_vid)
-    custom_size_3 = st.checkbox("Set custom Width and Height?", key="cs3")
+        
+    make_square_3 = st.checkbox("Force into a 200x200 Square?", key="sq3")
+    custom_size_3 = False if make_square_3 else st.checkbox("Set custom Width and Height?", key="cs3")
+    
     col1, col2 = st.columns(2)
     with col1:
         fps = st.slider("Frames Per Second (FPS)", 5, 30, 12)
-        vid_width = st.slider("GIF Width", 100, 1200, 480, key="vw3")
+        vid_width = 200 if make_square_3 else st.slider("GIF Width", 100, 1200, 480, key="vw3")
     with col2:
-        vid_height = st.slider("GIF Height", 100, 1200, 480, key="vh3") if custom_size_3 else 480
+        vid_height = 200 if make_square_3 else (st.slider("GIF Height", 100, 1200, 480, key="vh3") if custom_size_3 else 480
+        )
         
     if uploaded_vid:
-        if custom_size_3:
+        if make_square_3 or custom_size_3:
             show_size_guide(vid_width, vid_height)
         if st.button("🔄 Bake & Preview GIF Output"):
             try:
-                preview_file = video_to_gif(uploaded_vid, fps, vid_width, vid_height, custom_size_3)
+                preview_file = video_to_gif(uploaded_vid, fps, vid_width, vid_height, (make_square_3 or custom_size_3))
                 st.session_state['baked_vid_path'] = preview_file
             except Exception as e:
                 st.error("Error processing video.")
