@@ -63,7 +63,6 @@ def video_to_gif(video_bytes, fps, width, force_square=False):
         f.write(video_bytes.read())
     output_path = "video_animation.gif"
     
-    # FFmpeg crop filter graph for square videos
     vf_chain = f"fps={fps},"
     if force_square:
         vf_chain += f"crop='ih':'ih',scale={width}:{width}:flags=lanczos"
@@ -97,7 +96,12 @@ with tab1:
 
     if uploaded_gif and st.button("Bake Compressed GIF"):
         out = compress_gif(uploaded_gif, quality, gif_width, force_square=make_square_1)
-        st.success("Done!")
+        st.success("Baked Successfully!")
+        
+        # --- PREVIEW WINDOW ---
+        st.subheader("👀 Preview:")
+        st.image(out)
+        
         with open(out, "rb") as file:
             st.download_button("📥 Download your GIF", data=file, file_name="compressed.gif")
 
@@ -118,7 +122,12 @@ with tab2:
         
     if uploaded_imgs and st.button("Bake Image GIF"):
         out = images_to_gif(uploaded_imgs, duration, img_gif_width, force_square=make_square_2)
-        st.success("Done!")
+        st.success("Baked Successfully!")
+        
+        # --- PREVIEW WINDOW ---
+        st.subheader("👀 Preview:")
+        st.image(out)
+        
         with open(out, "rb") as file:
             st.download_button("📥 Download your GIF", data=file, file_name="image_animation.gif")
 
@@ -140,7 +149,12 @@ with tab3:
     if uploaded_vid and st.button("Bake Video GIF"):
         try:
             out = video_to_gif(uploaded_vid, fps, width, force_square=make_square_3)
-            st.success("Done!")
+            st.success("Baked Successfully!")
+            
+            # --- PREVIEW WINDOW ---
+            st.subheader("👀 Preview:")
+            st.image(out)
+            
             with open(out, "rb") as file:
                 st.download_button("📥 Download your GIF", data=file, file_name="video_animation.gif")
         except Exception as e:
