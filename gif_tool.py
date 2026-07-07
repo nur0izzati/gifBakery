@@ -3,6 +3,7 @@ import argparse
 import subprocess
 from PIL import Image
 
+
 def compress_gif(input_path, output_path, quality=20):
     print(f"⚡ Compressing {input_path}...")
     with Image.open(input_path) as img:
