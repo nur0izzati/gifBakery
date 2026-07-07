@@ -82,6 +82,10 @@ with tab1:
     st.header("Compress & Resize a GIF")
     uploaded_gif = st.file_uploader("Upload a GIF", type=["gif"], key="gif_comp")
     
+    if uploaded_gif:
+        st.subheader("📸 Uploaded File Preview:")
+        st.image(uploaded_gif, caption="Original GIF")
+    
     col1, col2 = st.columns(2)
     with col1:
         quality = st.slider("Quality (Colors)", 2, 256, 32, key="q_slide")
@@ -97,17 +101,19 @@ with tab1:
     if uploaded_gif and st.button("Bake Compressed GIF"):
         out = compress_gif(uploaded_gif, quality, gif_width, force_square=make_square_1)
         st.success("Baked Successfully!")
-        
-        # --- PREVIEW WINDOW ---
-        st.subheader("👀 Preview:")
+        st.subheader("👀 Final Result Preview:")
         st.image(out)
-        
         with open(out, "rb") as file:
-            st.download_button("📥 Download your GIF", data=file, file_name="compressed.gif")
+            st.download_button("📥 Download your GIF", data=file, file_name="compressed.gif", key="dl_1")
 
 with tab2:
     st.header("Convert Images into a GIF")
     uploaded_imgs = st.file_uploader("Upload multiple images", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+    
+    if uploaded_imgs:
+        st.subheader("📸 Uploaded Images Preview:")
+        # Show a grid preview of up to 5 uploaded pictures
+        st.image(uploaded_imgs[:5], width=100, caption=[f"Img {i+1}" for i in range(len(uploaded_imgs[:5]))])
     
     col1, col2 = st.columns(2)
     with col1:
@@ -123,17 +129,18 @@ with tab2:
     if uploaded_imgs and st.button("Bake Image GIF"):
         out = images_to_gif(uploaded_imgs, duration, img_gif_width, force_square=make_square_2)
         st.success("Baked Successfully!")
-        
-        # --- PREVIEW WINDOW ---
-        st.subheader("👀 Preview:")
+        st.subheader("👀 Final Result Preview:")
         st.image(out)
-        
         with open(out, "rb") as file:
-            st.download_button("📥 Download your GIF", data=file, file_name="image_animation.gif")
+            st.download_button("📥 Download your GIF", data=file, file_name="image_animation.gif", key="dl_2")
 
 with tab3:
     st.header("Convert Video into a GIF")
     uploaded_vid = st.file_uploader("Upload a video clip", type=["mp4", "mov", "avi"])
+    
+    if uploaded_vid:
+        st.subheader("🎬 Uploaded Video Preview:")
+        st.video(uploaded_vid)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -150,12 +157,9 @@ with tab3:
         try:
             out = video_to_gif(uploaded_vid, fps, width, force_square=make_square_3)
             st.success("Baked Successfully!")
-            
-            # --- PREVIEW WINDOW ---
-            st.subheader("👀 Preview:")
+            st.subheader("👀 Final Result Preview:")
             st.image(out)
-            
             with open(out, "rb") as file:
-                st.download_button("📥 Download your GIF", data=file, file_name="video_animation.gif")
+                st.download_button("📥 Download your GIF", data=file, file_name="video_animation.gif", key="dl_3")
         except Exception as e:
             st.error("Something went wrong with the video bakery process.")
