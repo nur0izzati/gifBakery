@@ -5,7 +5,7 @@ from PIL import Image
 
 st.set_page_config(page_title="gifBakery", page_icon="🍞")
 st.title("🍞 gifBakery")
-st.write("Welcome to your personal GIF workshop. Bake fresh GIFs right in your browser!")
+st.write("Bake, customize, and preview your GIFs live before saving!")
 
 # --- HELPERS ---
 def crop_to_square(img):
@@ -21,7 +21,7 @@ def crop_to_square(img):
 # --- FUNCTIONS ---
 def compress_gif(input_img, quality, width=None, force_square=False):
     img = Image.open(input_img)
-    output_path = "compressed.gif"
+    output_path = "temp_preview.gif"
     
     frames = []
     for frame in range(0, img.n_frames):
@@ -54,14 +54,14 @@ def images_to_gif(uploaded_files, duration, width, force_square=False):
             resized_img = img.resize((width, h_size), Image.Resampling.LANCZOS)
         frames.append(resized_img)
         
-    output_path = "images_animation.gif"
+    output_path = "temp_preview.gif"
     frames[0].save(output_path, save_all=True, append_images=frames[1:], duration=duration, loop=0)
     return output_path
 
 def video_to_gif(video_bytes, fps, width, force_square=False):
     with open("temp_video.mp4", "wb") as f:
         f.write(video_bytes.read())
-    output_path = "video_animation.gif"
+    output_path = "temp_preview.gif"
     
     vf_chain = f"fps={fps},"
     if force_square:
@@ -82,10 +82,6 @@ with tab1:
     st.header("Compress & Resize a GIF")
     uploaded_gif = st.file_uploader("Upload a GIF", type=["gif"], key="gif_comp")
     
-    if uploaded_gif:
-        st.subheader("📸 Uploaded File Preview:")
-        st.image(uploaded_gif, caption="Original GIF")
-    
     col1, col2 = st.columns(2)
     with col1:
         quality = st.slider("Quality (Colors)", 2, 256, 32, key="q_slide")
@@ -93,27 +89,23 @@ with tab1:
     with col2:
         if make_square_1:
             gif_width = 200
-            st.info("Dimensions locked to 200x200 square!")
         else:
-            resize_choice = st.checkbox("Change size dimensions?")
+            resize_choice = st.checkbox("Change size dimensions?", key="rc1")
             gif_width = st.number_input("New Width (Pixels)", min_value=100, max_value=2000, value=480) if resize_choice else None
 
-    if uploaded_gif and st.button("Bake Compressed GIF"):
-        out = compress_gif(uploaded_gif, quality, gif_width, force_square=make_square_1)
-        st.success("Baked Successfully!")
-        st.subheader("👀 Final Result Preview:")
-        st.image(out)
-        with open(out, "rb") as file:
-            st.download_button("📥 Download your GIF", data=file, file_name="compressed.gif", key="dl_1")
+    if uploaded_gif:
+        # Bake a live draft preview automatically or whenever settings update
+        preview_file = compress_gif(uploaded_gif, quality, gif_width, force_square=make_square_1)
+        
+        st.subheader("👀 Live Edit Preview (Check for mistakes here!):")
+        st.image(preview_file)
+        
+        with open(preview_file, "rb") as file:
+            st.download_button("📥 Everything looks good! Download GIF", data=file, file_name="baked_compressed.gif", key="dl_1")
 
 with tab2:
     st.header("Convert Images into a GIF")
     uploaded_imgs = st.file_uploader("Upload multiple images", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-    
-    if uploaded_imgs:
-        st.subheader("📸 Uploaded Images Preview:")
-        # Show a grid preview of up to 5 uploaded pictures
-        st.image(uploaded_imgs[:5], width=100, caption=[f"Img {i+1}" for i in range(len(uploaded_imgs[:5]))])
     
     col1, col2 = st.columns(2)
     with col1:
@@ -122,25 +114,21 @@ with tab2:
     with col2:
         if make_square_2:
             img_gif_width = 200
-            st.info("Dimensions locked to 200x200 square!")
         else:
             img_gif_width = st.slider("Output GIF Width (Pixels)", 240, 1080, 480)
         
-    if uploaded_imgs and st.button("Bake Image GIF"):
-        out = images_to_gif(uploaded_imgs, duration, img_gif_width, force_square=make_square_2)
-        st.success("Baked Successfully!")
-        st.subheader("👀 Final Result Preview:")
-        st.image(out)
-        with open(out, "rb") as file:
-            st.download_button("📥 Download your GIF", data=file, file_name="image_animation.gif", key="dl_2")
+    if uploaded_imgs:
+        preview_file = images_to_gif(uploaded_imgs, duration, img_gif_width, force_square=make_square_2)
+        
+        st.subheader("👀 Live Edit Preview (Check for mistakes here!):")
+        st.image(preview_file)
+        
+        with open(preview_file, "rb") as file:
+            st.download_button("📥 Everything looks good! Download GIF", data=file, file_name="baked_image_animation.gif", key="dl_2")
 
 with tab3:
     st.header("Convert Video into a GIF")
     uploaded_vid = st.file_uploader("Upload a video clip", type=["mp4", "mov", "avi"])
-    
-    if uploaded_vid:
-        st.subheader("🎬 Uploaded Video Preview:")
-        st.video(uploaded_vid)
     
     col1, col2 = st.columns(2)
     with col1:
@@ -149,17 +137,20 @@ with tab3:
     with col2:
         if make_square_3:
             width = 200
-            st.info("Dimensions locked to 200x200 square!")
         else:
             width = st.slider("GIF Width (Pixels)", 240, 1080, 480)
         
-    if uploaded_vid and st.button("Bake Video GIF"):
-        try:
-            out = video_to_gif(uploaded_vid, fps, width, force_square=make_square_3)
-            st.success("Baked Successfully!")
-            st.subheader("👀 Final Result Preview:")
-            st.image(out)
-            with open(out, "rb") as file:
-                st.download_button("📥 Download your GIF", data=file, file_name="video_animation.gif", key="dl_3")
-        except Exception as e:
-            st.error("Something went wrong with the video bakery process.")
+    if uploaded_vid:
+        # Video requires processing, so we show an explicit live generation
+        if st.button("🔄 Render Live Web Preview"):
+            try:
+                preview_file = video_to_gif(uploaded_vid, fps, width, force_square=make_square_3)
+                st.session_state['vid_preview'] = preview_file
+            except Exception as e:
+                st.error("Error processing video.")
+                
+        if 'vid_preview' in st.session_state and os.path.exists(st.session_state['vid_preview']):
+            st.subheader("👀 Live Edit Preview (Check for mistakes here!):")
+            st.image(st.session_state['vid_preview'])
+            with open(st.session_state['vid_preview'], "rb") as file:
+                st.download_button("📥 Everything looks good! Download GIF", data=file, file_name="baked_video_animation.gif", key="dl_3")
