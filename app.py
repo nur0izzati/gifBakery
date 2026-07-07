@@ -34,31 +34,52 @@ def compress_gif(input_img, quality, width, height, custom_size):
     img = Image.open(input_img)
     output_path = "temp_preview.gif"
     frames = []
+    
     for frame in range(0, img.n_frames):
         img.seek(frame)
-        current_frame = img.convert("RGBA")
-        current_frame.info = {} 
+        
+        # 1. Process current frame geometry
         if custom_size:
-            current_frame = crop_to_aspect(current_frame, width, height)
+            processed_frame = crop_to_aspect(img, width, height)
+            current_w, current_h = width, height
         else:
             w_percent = (width / float(img.size[0]))
             h_size = int((float(img.size[1]) * float(w_percent)))
-            current_frame = current_frame.resize((width, h_size), Image.Resampling.LANCZOS)
-        frames.append(current_frame)
-    frames[0].save(output_path, save_all=True, append_images=frames[1:], optimize=True, colors=quality, loop=0, disposal=2)
+            processed_frame = img.resize((width, h_size), Image.Resampling.LANCZOS)
+            current_w, current_h = width, h_size
+
+        # 2. CRITICAL FIX: Create a fresh canvas to destroy old header metadata sizes
+        clean_canvas = Image.new("RGBA", (current_w, current_h))
+        clean_canvas.paste(processed_frame, (0, 0))
+        frames.append(clean_canvas)
+        
+    # 3. Use the first frame of our NEW list to force the fresh canvas profile parameters
+    frames[0].save(
+        output_path, 
+        save_all=True, 
+        append_images=frames[1:], 
+        optimize=True, 
+        colors=quality, 
+        loop=0,
+        disposal=2
+    )
     return output_path
 
 def images_to_gif(image_frames_list, duration, width, height, use_custom_dimensions):
     frames = []
     for img in image_frames_list:
-        current_frame = img.convert("RGBA")
         if use_custom_dimensions:
-            resized_img = crop_to_aspect(current_frame, width, height)
+            resized_img = crop_to_aspect(img, width, height)
+            current_w, current_h = width, height
         else:
-            w_percent = (width / float(current_frame.size[0]))
-            h_size = int((float(current_frame.size[1]) * float(w_percent)))
-            resized_img = current_frame.resize((width, h_size), Image.Resampling.LANCZOS)
-        frames.append(resized_img)
+            w_percent = (width / float(img.size[0]))
+            h_size = int((float(img.size[1]) * float(w_percent)))
+            resized_img = img.resize((width, h_size), Image.Resampling.LANCZOS)
+            current_w, current_h = width, h_size
+            
+        clean_canvas = Image.new("RGBA", (current_w, current_h))
+        clean_canvas.paste(resized_img, (0, 0))
+        frames.append(clean_canvas)
         
     output_path = "temp_preview.gif"
     frames[0].save(output_path, save_all=True, append_images=frames[1:], duration=duration, loop=0, disposal=2)
@@ -119,13 +140,11 @@ with tab2:
     st.header("Convert Images into a GIF")
     uploaded_imgs = st.file_uploader("Upload images", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="img_multi")
     
-    # Initialize our timeline state tracking
     if 'timeline_files' not in st.session_state:
         st.session_state['timeline_files'] = []
     if 'last_uploaded_raw' not in st.session_state:
         st.session_state['last_uploaded_raw'] = []
 
-    # If the user changes or uploads new files, load them into our editable timeline list
     if uploaded_imgs:
         current_names = [f.name for f in uploaded_imgs]
         if current_names != st.session_state['last_uploaded_raw']:
@@ -138,34 +157,25 @@ with tab2:
         
         final_processing_frames = []
         
-        # Display each file in its current active position index
         for index, img_file in enumerate(st.session_state['timeline_files']):
             col_name, col_dup, col_up, col_down = st.columns([4, 2, 1, 1])
-            
             with col_name:
                 st.write(f"**{index + 1}.** `{img_file.name}`")
-            
             with col_dup:
                 if st.button("➕ Copy", key=f"dup_{index}_{img_file.name}"):
-                    # Insert a duplicate of this object right next to it
                     st.session_state['timeline_files'].insert(index + 1, img_file)
                     st.rerun()
-                    
             with col_up:
-                # Disable the up arrow if it's already the very first frame
                 if st.button("🔼", key=f"up_{index}_{img_file.name}", disabled=(index == 0)):
                     st.session_state['timeline_files'][index], st.session_state['timeline_files'][index - 1] = \
                         st.session_state['timeline_files'][index - 1], st.session_state['timeline_files'][index]
                     st.rerun()
-                    
             with col_down:
-                # Disable the down arrow if it's already the very last frame
                 if st.button("🔽", key=f"down_{index}_{img_file.name}", disabled=(index == len(st.session_state['timeline_files']) - 1)):
                     st.session_state['timeline_files'][index], st.session_state['timeline_files'][index + 1] = \
                         st.session_state['timeline_files'][index + 1], st.session_state['timeline_files'][index]
                     st.rerun()
             
-            # Read image data for final compilation
             pil_obj = Image.open(img_file)
             final_processing_frames.append(pil_obj)
             
